@@ -7,6 +7,8 @@ RUN apt-get update -y \
 WORKDIR /app
 
 COPY package*.json ./
+COPY prisma ./prisma
+
 RUN npm ci
 
 COPY . .
