@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  MEMBER
+}
+
+enum CodeType {
+  REGISTER
+  PASSWORD_RESET
+}
+
+enum TripResponseStatus {
+  GOING
+  NOT_GOING
+  INTERESTED
+}
+
+model User {
+  id            String          @id @default(uuid())
+  username      String          @unique
+  passwordHash  String
+  role          UserRole        @default(MEMBER)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  createdTrips  Trip[]          @relation("TripCreator")
+  visibleTrips  TripVisibility[]
+  tripResponses TripResponse[]
+
+  createdCodes  AccessCode[]    @relation("CodeCreatedBy")
+  usedCodes     AccessCode[]    @relation("CodeUsedBy")
+  resetCodes    AccessCode[]    @relation("ResetTargetUser")
+}
+
+model AccessCode {
+  id           String     @id @default(uuid())
+  code         String     @unique
+  type         CodeType
+  createdAt    DateTime   @default(now())
+  expiresAt    DateTime?
+  usedAt       DateTime?
+
+  createdById  String
+  createdBy    User       @relation("CodeCreatedBy", fields: [createdById], references: [id])
+
+  usedById     String?
+  usedBy       User?      @relation("CodeUsedBy", fields: [usedById], references: [id])
+
+  targetUserId String?
+  targetUser   User?      @relation("ResetTargetUser", fields: [targetUserId], references: [id])
+}
+
+model Trip {
+  id          String           @id @default(uuid())
+  title       String
+  description String?
+  eventDate   DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  creatorId   String
+  creator     User             @relation("TripCreator", fields: [creatorId], references: [id])
+
+  visibility  TripVisibility[]
+  responses   TripResponse[]
+}
+
+model TripVisibility {
+  id        String   @id @default(uuid())
+  tripId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, userId])
+}
+
+model TripResponse {
+  id        String             @id @default(uuid())
+  tripId    String
+  userId    String
+  status    TripResponseStatus
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  trip      Trip               @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, userId])
+}
