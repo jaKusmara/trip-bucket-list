@@ -1,33 +1,31 @@
-FROM node:24-slim AS deps
+FROM node:20-bookworm-slim
+
+RUN apt-get update -y \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm ci
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
 
-FROM node:24-slim AS builder
-WORKDIR /app
+RUN corepack enable
 
-COPY --from=deps /app/node_modules ./node_modules
+# Copy the whole Nx monorepo so apps/api and libs/* are available
 COPY . .
 
-ENV NODE_ENV=production
+# Install full workspace deps for build + Prisma CLI + Nx
+RUN npm install --frozen-lockfile
 
-RUN npx prisma generate
+# Generate Prisma Client before building
+RUN npm exec prisma generate
+
+# Build only the backend app
 RUN npm run build
 
-FROM node:24-slim AS runner
-WORKDIR /app
-
 ENV NODE_ENV=production
-ENV PORT=3000
-ENV HOSTNAME=0.0.0.0
-
-COPY --from=builder --chown=node:node /app/public ./public
-COPY --from=builder --chown=node:node /app/.next/standalone ./
-COPY --from=builder --chown=node:node /app/.next/static ./.next/static
-
-USER node
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+# Apply migrations in production, then start the built API
+CMD ["sh", "-c", "npm exec prisma migrate deploy && npm run start"]
