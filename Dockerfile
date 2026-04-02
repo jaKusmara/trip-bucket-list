@@ -6,26 +6,16 @@ RUN apt-get update -y \
 
 WORKDIR /app
 
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
+COPY package*.json ./
+RUN npm ci
 
-RUN corepack enable
-
-# Copy the whole Nx monorepo so apps/api and libs/* are available
 COPY . .
 
-# Install full workspace deps for build + Prisma CLI + Nx
-RUN npm install --frozen-lockfile
-
-# Generate Prisma Client before building
-RUN npm exec prisma generate
-
-# Build only the backend app
+RUN npx prisma generate
 RUN npm run build
 
 ENV NODE_ENV=production
 
 EXPOSE 3000
 
-# Apply migrations in production, then start the built API
-CMD ["sh", "-c", "npm exec prisma migrate deploy && npm run start"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npx next start -H 0.0.0.0 -p ${PORT:-3000}"]
